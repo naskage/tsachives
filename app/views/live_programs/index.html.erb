@@ -1,0 +1,39 @@
+<p id="notice"><%= notice %></p>
+
+<h1>Listing Live Programs</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Live</th>
+      <th>Started at</th>
+      <th>User</th>
+      <th>Title</th>
+      <th>Desc</th>
+      <th>Url</th>
+      <th>Player status</th>
+      <th colspan="3"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @live_programs.each do |live_program| %>
+      <tr>
+        <td><%= live_program.live_id %></td>
+        <td><%= live_program.started_at %></td>
+        <td><%= live_program.user %></td>
+        <td><%= live_program.title %></td>
+        <td><%= live_program.desc %></td>
+        <td><%= live_program.url %></td>
+        <td><%= live_program.player_status %></td>
+        <td><%= link_to 'Show', live_program %></td>
+        <td><%= link_to 'Edit', edit_live_program_path(live_program) %></td>
+        <td><%= link_to 'Destroy', live_program, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Live program', new_live_program_path %>

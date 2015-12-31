@@ -1,0 +1,45 @@
+<%= form_for(@live_program) do |f| %>
+  <% if @live_program.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(@live_program.errors.count, "error") %> prohibited this live_program from being saved:</h2>
+
+      <ul>
+      <% @live_program.errors.full_messages.each do |message| %>
+        <li><%= message %></li>
+      <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= f.label :live_id %><br>
+    <%= f.number_field :live_id %>
+  </div>
+  <div class="field">
+    <%= f.label :started_at %><br>
+    <%= f.datetime_select :started_at %>
+  </div>
+  <div class="field">
+    <%= f.label :user %><br>
+    <%= f.text_field :user %>
+  </div>
+  <div class="field">
+    <%= f.label :title %><br>
+    <%= f.text_area :title %>
+  </div>
+  <div class="field">
+    <%= f.label :desc %><br>
+    <%= f.text_area :desc %>
+  </div>
+  <div class="field">
+    <%= f.label :url %><br>
+    <%= f.text_field :url %>
+  </div>
+  <div class="field">
+    <%= f.label :player_status %><br>
+    <%= f.text_area :player_status %>
+  </div>
+  <div class="actions">
+    <%= f.submit %>
+  </div>
+<% end %>

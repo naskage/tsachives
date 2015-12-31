@@ -1,0 +1,39 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Live:</strong>
+  <%= @live_program.live_id %>
+</p>
+
+<p>
+  <strong>Started at:</strong>
+  <%= @live_program.started_at %>
+</p>
+
+<p>
+  <strong>User:</strong>
+  <%= @live_program.user %>
+</p>
+
+<p>
+  <strong>Title:</strong>
+  <%= @live_program.title %>
+</p>
+
+<p>
+  <strong>Desc:</strong>
+  <%= @live_program.desc %>
+</p>
+
+<p>
+  <strong>Url:</strong>
+  <%= @live_program.url %>
+</p>
+
+<p>
+  <strong>Player status:</strong>
+  <%= @live_program.player_status %>
+</p>
+
+<%= link_to 'Edit', edit_live_program_path(@live_program) %> |
+<%= link_to 'Back', live_programs_path %>
