@@ -4,7 +4,7 @@ require 'net/http'
 require 'nokogiri'
 require 'logger'
 
-class SmilePlayerStatus
+class NicoPlayerStatus
 
   attr_accessor :output_name
   attr_reader :player_ticket, :rtmp_url, :que
@@ -124,6 +124,9 @@ class SmilePlayerStatus
       exit(1);
     end
 
+    title = player_status.xpath('//stream/title').text
+    @output_name = "lv#{live_id}_#{title}.flv"
+
     @rtmp_url = player_status.xpath('//rtmp/url').text
 #    @contents = player_status.xpath('//contents_list/contents').text
     queues = player_status.xpath('//quesheet/que')
@@ -179,15 +182,15 @@ class SmilePlayerStatus
 
 end
 
-status = SmilePlayerStatus.new(Logger::INFO)
+# status = NicoPlayerStatus.new(Logger::INFO)
 
-# login
-status.cookie_container
-status.login
-status.alert_status
+# # login
+# status.cookie_container
+# status.login
+# status.alert_status
 
-grandia = 246843477
-ikaruga = 247139683
-status.player_status(grandia)
+# grandia = 246843477
+# ikaruga = 247139683
+# status.player_status(grandia)
 
-puts status.rtmp_command
+# puts status.rtmp_command

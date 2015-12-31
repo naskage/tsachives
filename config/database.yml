@@ -13,6 +13,8 @@ test:
 
 production:
   <<: *default
+  host: naskagedbinstance.crzskyasitcx.ap-northeast-1.rds.amazonaws.com 
+  port: 5432 
   database: tsarchives 
   username: postgres
   password: <%= ENV['PG_PASSWORD'] %>
