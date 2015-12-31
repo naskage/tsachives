@@ -27,7 +27,13 @@ class Tasks::ArchiveTimeShift
     @@log.info 'end get player status'
     
     @@log.info '----------------------------------------'
-    
+
+    # todo
+    # rtmpdump 分離
+    # statusカラム 更新
+    # ffmpegコマンド実行
+    # aws s3 コマンド実行
+     
   end
 
   private

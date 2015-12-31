@@ -4,6 +4,8 @@ require 'net/http'
 require 'nokogiri'
 require 'logger'
 
+OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
+
 class NicoPlayerStatus
 
   attr_accessor :output_name
