@@ -167,8 +167,8 @@ class Tasks::ArchiveTimeShift
       " -C S:\"#{job.player_ticket}\"" \
       " -N \"#{job.queue}\"" \
       " -o \"#{DOWNLOAD_DIR}#{SEP}#{job.file_name}\"" \
-      " -v #{job.options}" \
-      " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
+      " -v #{job.options}"
+      command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
       @@log.debug command
       succeeded = system(command)
       if succeeded
@@ -196,10 +196,11 @@ class Tasks::ArchiveTimeShift
     list = Job.find(ids)
 
     list.each do |job|
-      succeeded = system("aws s3 mv" \
-        " #{DOWNLOAD_DIR}#{SEP}#{job.file_name}" \
-        " s3://naskage-tsarchives/flv/" \
-      )
+      command = "aws s3 mv" \
+      " #{DOWNLOAD_DIR}#{SEP}#{job.file_name}" \
+      " s3://naskage-tsarchives/flv/"
+      command = "echo " + command
+      succeeded = system(command)
       if succeeded
         job.update(status: Job::Status::UPLOADED)
       else
