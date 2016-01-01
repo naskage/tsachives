@@ -15,13 +15,8 @@ class NicoLive
   def initialize(loglevel = Logger::INFO)
     @log = Logger.new(STDOUT)
     @log.level = loglevel
-    @output_name = "output.flv"
   end
 
-  def rtmp_command
-    "rtmpdumpTS -vr \"#{@rtmp_url}\" -C S:\"#{player_ticket}\" -N \"#{que}\" -o \"#{output_name}\" -v -V"
-  end
-  
   def login
     @log.debug 'login...'
 
@@ -37,6 +32,7 @@ class NicoLive
   
   def get_player_status(live_id)
     hash = get_player_status_hash(live_id)
+    
     if hash['status'] != 'fail'
       PlayerStatus.new(hash)
     else

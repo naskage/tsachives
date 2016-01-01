@@ -127,8 +127,10 @@ class Tasks::ArchiveTimeShift
     download_list = []
     targets.each do |t|
       status = live.get_player_status(t)
-      download_list << status if status != nil
-      LiveProgram.where(live_id: t).take.update(dl_status: LiveProgram::Status::QUEUED)
+      if status != nil && 1 <= status.queues.length
+        download_list << status
+        LiveProgram.where(live_id: t).take.update(dl_status: LiveProgram::Status::QUEUED)
+      end
     end
 
     download_list
@@ -175,7 +177,8 @@ class Tasks::ArchiveTimeShift
       # resuming
       unless succeeded
         catch(:resume_succeeded) do
-          5.times do 
+          5.times do
+            @@log.info 'resuming ...'
             if system(command + " -e")
               succeeded = true
               throw :resume_succeeded

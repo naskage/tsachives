@@ -11,10 +11,15 @@ class PlayerStatus
     @provider_type = attr['stream']['provider_type']
     @community = attr['stream']['default_community']
     @queues = []
-    attr['stream']['quesheet']['que'].each do |que|
-      params = que.split(' ')
-      if params.length == 3 && params[2].starts_with?("rtmp://")
-        queues << params[2]
+
+    obj = attr['stream']['quesheet']['que']
+    if obj.is_a?(String)
+      url = strip_rtmp_url(obj)
+      queues << url if url
+    elsif obj.kind_of?(Array)
+      obj.each do |que|
+        url = strip_rtmp_url(que)
+        queues << url if url
       end
     end
     
@@ -22,6 +27,17 @@ class PlayerStatus
     @player_ticket = attr['rtmp']['ticket']
 
     @raw_status = attr 
+  end
+
+  private
+
+  def strip_rtmp_url(str)
+    params = str.split(' ')
+    if params.length == 3 && params[2].starts_with?("rtmp://")
+      params[2]
+    else
+      nil
+    end
   end
 
 end
