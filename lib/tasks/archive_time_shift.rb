@@ -35,14 +35,12 @@ class Tasks::ArchiveTimeShift
     list = self.update_programs
     if list == nil
       @@log.error "listing up player status to download ... failed."
-      return
     elsif list.length == 0
       @@log.info "no time shift to download."
-      return
+    else
+      @@log.info 'enqueuing...'
+      self.enqueue(list) if list.length > 0
     end
-
-    @@log.info 'enqueuing...'
-    self.enqueue(list)
     
     @@log.info 'downloading...'
     self.download
