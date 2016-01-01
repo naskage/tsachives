@@ -110,7 +110,10 @@ class Tasks::ArchiveTimeShift
   end
 
   def self.update_programs
-     targets = LiveProgram.where(dl_status: LiveProgram::Status::REGISTERED).pluck(:live_id)
+    targets = LiveProgram.where(dl_status: [
+        LiveProgram::Status::REGISTERED,
+        LiveProgram::Status::QUEUED
+      ]).pluck(:live_id)
 
     @@log.debug "listed targets: #{targets}, length: #{targets.length}"
 
@@ -143,16 +146,19 @@ class Tasks::ArchiveTimeShift
         file_name = "lv#{target.live_id}_#{target.title}"
         file_name += ".#{i}" if divided
         file_name += ".flv"
-        Job.create(
-          live_id:       target.live_id,
-          rtmp_url:      target.rtmp_url,
-          player_ticket: target.player_ticket,
-          divided:       divided,
-          queue_no:      divided ? i : nil,
-          queue:         target.queues[i],
-          file_name:     file_name,
-          status:        Job::Status::QUEUED
+        job = Job.find_or_initialize_by(
+          live_id: target.live_id,
+          queue_no: divided ? i : nil
         )
+        if job.new_record? 
+          job.rtmp_url = target.rtmp_url
+          job.player_ticket = target.player_ticket
+          job.divided = divided
+          job.queue = target.queues[i]
+          job.file_name = file_name
+          job.save!
+        end
+        Job.update(status: Job::Status::QUEUED)
       end
     end
   end
