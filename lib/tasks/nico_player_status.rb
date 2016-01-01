@@ -3,6 +3,7 @@
 require 'net/http'
 require 'nokogiri'
 require 'logger'
+require 'active_support/core_ext'
 
 OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
@@ -45,7 +46,8 @@ class NicoPlayerStatus
   
   def login
     @log.debug 'login...'
-    url = "https://secure.nicovideo.jp/secure/login?site=nicolive_antenna"
+    #url = "https://secure.nicovideo.jp/secure/login?site=nicolive_antenna"
+    url = "https://secure.nicovideo.jp/secure/login?site=nicolive"
 
     params = {
       "next_url" => "",
@@ -53,10 +55,16 @@ class NicoPlayerStatus
       "password" => ENV['NICO_PASSWORD']
     } 
     
+
     response = Net::HTTP.post_form(URI.parse(url), params)
 
     @log.debug response.header
     @log.debug response.body
+
+    @user_session = get_user_session(response)
+
+    @log.debug "user_session: #{@user_session}"
+    @log.debug "login succeeded."
     
     # case response
     # when Net::HTTPSuccess
@@ -65,17 +73,18 @@ class NicoPlayerStatus
     #   response = fetch(response['location'])
     # end
 
-    user_response = Nokogiri::XML.parse(response.body, nil, 'utf-8')
-    status = user_response.xpath('/nicovideo_user_response').attribute('status').value
-    if status != 'ok'
-      @log.error 'login failed.'
-      exit(1);
-    end
+    # user_response = Nokogiri::XML.parse(response.body, nil, 'utf-8')
+    # status = user_response.xpath('/nicovideo_user_response').attribute('status').value
+    # if status != 'ok'
+    #   @log.error 'login failed.'
+    #   return
+    #   #exit(1);
+    # end
 
-    @ticket = user_response.xpath('//ticket').text
+    # @ticket = user_response.xpath('//ticket').text
 
-    @log.debug "login succeeded."
-    @log.debug "ticket: " + @ticket
+    # @log.debug "login succeeded."
+    # @log.debug "ticket: " + @ticket
     
   end
 
@@ -92,7 +101,8 @@ class NicoPlayerStatus
     status = get_alert_status.xpath('/getalertstatus').attribute('status').value
     if status != 'ok'
       @log.error 'could not get getalertstatus.'
-      exit(1);
+      return
+      #exit(1);
     end
 
     @addr = get_alert_status.xpath('//addr').text
@@ -119,34 +129,42 @@ class NicoPlayerStatus
     @log.debug response.header
     @log.debug response.body
 
-    player_status = Nokogiri::XML.parse(response.body, nil, 'utf-8')
-    status = player_status.xpath('/getplayerstatus').attribute('status').value
-    if status != 'ok'
-      @log.error 'could not get getplayerstatus.'
-      exit(1);
-    end
+    status =  Hash.from_xml(response.body)['getplayerstatus']
 
-    title = player_status.xpath('//stream/title').text
-    @output_name = "lv#{live_id}_#{title}.flv"
+    # if status['status'] != 'ok'
+    #   @log.error 'could not get getplayerstatus.'
+    #   return
+    #   #exit(1);
+    # end
+    
+    # player_status = Nokogiri::XML.parse(response.body, nil, 'utf-8')
+#     status = player_status.xpath('/getplayerstatus').attribute('status').value
+#     if status != 'ok'
+#       @log.error 'could not get getplayerstatus.'
+#       exit(1);
+#     end
 
-    @rtmp_url = player_status.xpath('//rtmp/url').text
-#    @contents = player_status.xpath('//contents_list/contents').text
-    queues = player_status.xpath('//quesheet/que')
-    queues.each do |que|
-      arry = que.text.split(' ')
-      if arry[0] == '/publish'
-        @que = arry[2]
-        break
-      end
-    end
-    @player_ticket = player_status.xpath('//ticket').text
+#     title = player_status.xpath('//stream/title').text
+#     @output_name = "lv#{live_id}_#{title}.flv"
+
+#     @rtmp_url = player_status.xpath('//rtmp/url').text
+# #    @contents = player_status.xpath('//contents_list/contents').text
+#     queues = player_status.xpath('//quesheet/que')
+#     queues.each do |que|
+#       arry = que.text.split(' ')
+#       if arry[0] == '/publish'
+#         @que = arry[2]
+#         break
+#       end
+#    end
+#    @player_ticket = player_status.xpath('//ticket').text
 
     @log.debug "player_status succeeded."
-    @log.debug "rtmp_url: #{@rtmp_url}"
-#    @log.debug "contents: #{@contents}"
-    @log.debug "que: #{@que}"
-    @log.debug "player_ticket: #{player_ticket}"
+    # @log.debug "rtmp_url: #{status[rtmp][url]}"
+    # @log.debug "que: #{@que}"
+    # @log.debug "player_ticket: #{status[rtmp][ticket]}"
     
+    status
   end
   
   def fetch(uri_str, limit = 10) 
