@@ -158,7 +158,7 @@ class Tasks::ArchiveTimeShift
           job.file_name = file_name
           job.save!
         end
-        Job.update(status: Job::Status::QUEUED)
+        job.update(status: Job::Status::QUEUED)
       end
     end
   end
