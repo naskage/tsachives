@@ -20,7 +20,7 @@ class Tasks::ArchiveTimeShift
   FLV_DIR = "video" + SEP + "flv"
   MP4_DIR = "video" + SEP + "mp4"
 
-  @@log = Logger.new(STDOUT)
+  @@log = Logger.new('log/batch.log')
   @@log.level = Logger::DEBUG
   
   def self.execute
@@ -141,6 +141,79 @@ class Tasks::ArchiveTimeShift
 
   def self.enqueue(target_list)
     target_list.each do |target|
+      job = Job.find_or_initialize_by(live_id: target.live_id)
+      job.update(status: Job::Status::QUEUED)
+    end
+  end
+  
+  def self.download
+    list = Job.where(status: [Job::Status::QUEUED, Job::Status::DOWNLOAD_FAILED])
+    ids = list.ids
+    list.update_all({status: Job::Status::DOWNLOADING})
+    list = Job.find(ids)
+    
+    list.each do |job|
+      live_id = job.live_id
+      live = NicoLive.new
+      unless live.login
+        @@log.error "login failed."
+        return
+      end
+      status = live.get_player_status(live_id)
+      
+      divided = (2 <= status.queues.length)
+      
+      for i in 0..(status.queues.length - 1) do
+        file_name = "lv#{status.live_id}_#{status.title}"
+        file_name += ".#{i}" if divided
+        file_name += ".flv"
+        
+        command = "rtmpdumpTS" \
+        " -vr \"#{status.rtmp_url}\"" \
+        " -C S:\"#{status.player_ticket}\"" \
+        " -N \"#{status.queues[i]}\"" \
+        " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
+        # command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
+        @@log.debug command
+        succeeded = system(command)          
+        if succeeded
+          job.update(status: Job::Status::DOWNLOADED)
+          Upload.find_or_create_by(live_id: status.live_id,
+            src: "#{DOWNLOAD_DIR}#{SEP}#{file_name}",
+            dst: "s3://naskage-tsarchives/flv/",
+            status: Upload::Status::UPLOADING
+          )
+        else
+          job.update(status: Job::Status::DOWNLOAD_FAILED)
+          @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
+        end
+        
+      end
+    end
+    
+  end
+
+  def self.upload
+    list = Upload.where(status: [Upload::Status::UPLOADING, Upload::Status::UPLOAD_FAILED])
+    ids = list.ids
+    list.update_all({status: Upload::Status::UPLOADING})
+    list = Upload.find(ids)
+
+    list.each do |up|
+      command = "aws s3 mv #{up.src} #{up.dst}"
+      # command = "echo " + command
+      succeeded = system(command)
+      if succeeded
+        up.update(status: Upload::Status::UPLOADED)
+      else
+        up.update(status: Upload::Status::UPLOAD_FAILED)
+        @@log.error "upload to s3 failed. upload id: #{up.id}, live_id: #{up.live_id}"
+      end
+    end
+  end
+  
+  def self._enqueue(target_list)
+    target_list.each do |target|
       divided = (2 <= target.queues.length)
       for i in 0..(target.queues.length - 1) do
         file_name = "lv#{target.live_id}_#{target.title}"
@@ -163,7 +236,7 @@ class Tasks::ArchiveTimeShift
     end
   end
 
-  def self.download
+  def self._download
     list = Job.where(status: [Job::Status::QUEUED, Job::Status::DOWNLOAD_FAILED])
     ids = list.ids
     list.update_all({status: Job::Status::DOWNLOADING})
@@ -176,7 +249,7 @@ class Tasks::ArchiveTimeShift
       " -N \"#{job.queue}\"" \
       " -o \"#{DOWNLOAD_DIR}#{SEP}#{job.file_name}\"" \
       " -v #{job.options}"
-      # command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
+      command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
       @@log.debug command
       succeeded = system(command)
 
@@ -211,7 +284,7 @@ class Tasks::ArchiveTimeShift
     system(command)
   end
 
-  def self.upload
+  def self._upload
     list = Job.where(status: Job::Status::DOWNLOADED)
     ids = list.ids
     list.update_all({status: Job::Status::UPLOADING})
@@ -233,11 +306,11 @@ class Tasks::ArchiveTimeShift
   end
   
   private
-
+  
   def self.is_ready_for_download?(live_id)
     LiveProgram.where(live_id: live_id).take.dl_status == LiveProgram::Status::QUEUED
   end
-
+  
   def self.is_ready_for_convert(live_id)
     LiveProgram.where(live_id: live_id).take.dl_status == LiveProgram::Status::DOWNLOADED
   end
