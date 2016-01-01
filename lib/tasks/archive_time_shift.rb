@@ -34,7 +34,7 @@ class Tasks::ArchiveTimeShift
     @@log.info 'updating program list to download...'
     list = self.update_programs
     if list == nil
-      @@log.error "listing up player status to download ... failed."
+      @@log.error "listing up player status to download... failed."
     elsif list.length == 0
       @@log.info "no time shift to download."
     else
@@ -156,7 +156,7 @@ class Tasks::ArchiveTimeShift
   end
 
   def self.download
-    list = Job.where(status: Job::Status::QUEUED)
+    list = Job.where(status: [Job::Status::QUEUED, Job::Status::DOWNLOAD_FAILED])
     ids = list.ids
     list.update_all({status: Job::Status::DOWNLOADING})
     list = Job.find(ids)
@@ -168,9 +168,22 @@ class Tasks::ArchiveTimeShift
       " -N \"#{job.queue}\"" \
       " -o \"#{DOWNLOAD_DIR}#{SEP}#{job.file_name}\"" \
       " -v #{job.options}"
-      command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
+      # command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
       @@log.debug command
       succeeded = system(command)
+
+      # resuming
+      unless succeeded
+        catch(:resume_succeeded) do
+          5.times do 
+            if system(command + " -e")
+              succeeded = true
+              throw :resume_succeeded
+            end
+          end
+        end
+      end
+      
       if succeeded
         job.update(status: Job::Status::DOWNLOADED)
       else
@@ -199,7 +212,7 @@ class Tasks::ArchiveTimeShift
       command = "aws s3 mv" \
       " #{DOWNLOAD_DIR}#{SEP}#{job.file_name}" \
       " s3://naskage-tsarchives/flv/"
-      command = "echo " + command
+      # command = "echo " + command
       succeeded = system(command)
       if succeeded
         job.update(status: Job::Status::UPLOADED)
