@@ -110,14 +110,12 @@ class Tasks::ArchiveTimeShift
   end
 
   def self.update_programs
-    download_list = []
-    
-    targets = LiveProgram.where(dl_status: LiveProgram::Status::REGISTERED).pluck(:live_id)
+     targets = LiveProgram.where(dl_status: LiveProgram::Status::REGISTERED).pluck(:live_id)
 
     @@log.debug "listed targets: #{targets}, length: #{targets.length}"
 
     if targets.length == 0
-      return
+      return []
     end
 
     live = NicoLive.new
@@ -126,6 +124,7 @@ class Tasks::ArchiveTimeShift
       return
     end
 
+    download_list = []
     targets.each do |t|
       status = live.get_player_status(t)
       download_list << status if status != nil
