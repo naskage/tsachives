@@ -6,12 +6,19 @@ require 'logger'
 require 'optparse'
 require 'nico_live'
 
+if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
+  SEP = '\\'
+else
+  SEP = '/'
+end
+
+
 class Tasks::ArchiveTimeShift
 
   PAGE_LIMIT_FOR_CHECK = 10
-  DOWNLOAD_DIR = "video/downloaded"
-  FLV_DIR = "video/flv"
-  MP4_DIR = "video/mp4"
+  DOWNLOAD_DIR = "video" + SEP + "downloaded"
+  FLV_DIR = "video" + SEP + "flv"
+  MP4_DIR = "video" + SEP + "mp4"
 
   @@log = Logger.new(STDOUT)
   @@log.level = Logger::DEBUG
@@ -159,12 +166,12 @@ class Tasks::ArchiveTimeShift
     
     list.each do |job|
       command = "rtmpdumpTS" \
-        " -vr \"#{job.rtmp_url}\"" \
-        " -C S:\"#{job.player_ticket}\"" \
-        " -N \"#{job.queue}\"" \
-        " -o \"#{DOWNLOAD_DIR}/#{job.file_name}\"" \
-        " -v #{job.options}" \
-        " > #{DOWNLOAD_DIR}/#{job.file_name}"
+      " -vr \"#{job.rtmp_url}\"" \
+      " -C S:\"#{job.player_ticket}\"" \
+      " -N \"#{job.queue}\"" \
+      " -o \"#{DOWNLOAD_DIR}#{SEP}#{job.file_name}\"" \
+      " -v #{job.options}" \
+      " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
       @@log.debug command
       succeeded = system(command)
       if succeeded
@@ -178,11 +185,9 @@ class Tasks::ArchiveTimeShift
   end
 
   def self.convert
-    src_dir = "video/downloaded"
-    dst_dir = "video/mp4"
     
-    ffmpeg_command = %(ffmpeg -y -i #{src_dir}/$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{dst_dir}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
-    command = "for file in `ls video/downloaded`; do #{ffmpeg_command}; done"
+    ffmpeg_command = %(ffmpeg -y -i #{src_dir}#{SEP}$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{dst_dir}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
+    command = "for file in `ls video#{SEP}downloaded`; do #{ffmpeg_command}; done"
     
     system(command)
   end
@@ -195,7 +200,7 @@ class Tasks::ArchiveTimeShift
 
     list.each do |job|
       succeeded = system("aws s3 mv" \
-        " #{DOWNLOAD_DIR}/#{job.file_name}" \
+        " #{DOWNLOAD_DIR}#{SEP}#{job.file_name}" \
         " s3://naskage-tsarchives/flv/" \
       )
       if succeeded
