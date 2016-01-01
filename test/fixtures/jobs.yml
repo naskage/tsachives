@@ -1,0 +1,19 @@
+# Read about fixtures at http://api.rubyonrails.org/classes/ActiveRecord/FixtureSet.html
+
+one:
+  live_id: 1
+  rtmp_url: MyText
+  player_ticket: MyText
+  que_no: 1
+  que: MyText
+  file_name: MyString
+  options: MyString
+
+two:
+  live_id: 1
+  rtmp_url: MyText
+  player_ticket: MyText
+  que_no: 1
+  que: MyText
+  file_name: MyString
+  options: MyString

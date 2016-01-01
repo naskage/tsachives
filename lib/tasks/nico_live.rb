@@ -37,7 +37,12 @@ class NicoLive
   
   def get_player_status(live_id)
     hash = get_player_status_hash(live_id)
-    PlayerStatus.new(hash)
+    if hash['status'] != 'fail'
+      PlayerStatus.new(hash)
+    else
+      @log.info "could not get status. live_id: #{live_id}"
+      nil
+    end
   end
   
   private

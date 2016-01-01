@@ -11,7 +11,24 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 20151231080833) do
+ActiveRecord::Schema.define(version: 20160101113607) do
+
+  # These are extensions that must be enabled in order to support this database
+  enable_extension "plpgsql"
+
+  create_table "jobs", force: :cascade do |t|
+    t.integer  "live_id",                       null: false
+    t.text     "rtmp_url",                      null: false
+    t.text     "player_ticket",                 null: false
+    t.boolean  "divided",       default: false
+    t.integer  "queue_no"
+    t.text     "queue",                         null: false
+    t.string   "file_name",                     null: false
+    t.string   "options"
+    t.integer  "status"
+    t.datetime "created_at",                    null: false
+    t.datetime "updated_at",                    null: false
+  end
 
   create_table "live_programs", force: :cascade do |t|
     t.integer  "live_id"

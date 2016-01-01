@@ -9,50 +9,45 @@ require 'nico_live'
 class Tasks::ArchiveTimeShift
 
   PAGE_LIMIT_FOR_CHECK = 10
+  DOWNLOAD_DIR = "video/downloaded"
+  FLV_DIR = "video/flv"
+  MP4_DIR = "video/mp4"
 
   @@log = Logger.new(STDOUT)
   @@log.level = Logger::DEBUG
   
   def self.execute
 
-    option = {}
-    OptionParser.new do |opt|
-      opt.on('--test', 'rtmpdump および ffmpeg を実行せず，コマンドを echo する') { |v| option[:test] = v }
-      opt.parse!(ARGV)
-    end
-
-    if option[:test]
-      @@test_echo = "echo "
-    end
-    
     @@log.info 'Tasks::ArchiveTimeShift'
     @@log.info '----------------------------------------'
      
     @@log.info 'updating live archives...'
-    #self.update_live_archives
+    self.update_live_archives
     
-    @@log.info 'listing up player status to download...'
-    list = self.listup_player_status_to_dl
-
-    unless list
+    @@log.info 'updating program list to download...'
+    list = self.update_programs
+    if list == nil
       @@log.error "listing up player status to download ... failed."
+      return
+    elsif list.length == 0
+      @@log.info "no time shift to download."
       return
     end
 
+    @@log.info 'enqueuing...'
+    self.enqueue(list)
+    
     @@log.info 'downloading...'
-    self.download(list)
+    self.download
 
-    @@log.info 'converting...'
-    self.convert
+    # @@log.info 'converting...'
+    # self.convert
+
+    @@log.info 'uploading...'
+    self.upload
     
     @@log.info '----------------------------------------'
 
-    # todo
-    # rtmpdump 分離
-    # statusカラム 更新
-    # ffmpegコマンド実行
-    # aws s3 コマンド実行
-     
   end
 
   private
@@ -109,7 +104,7 @@ class Tasks::ArchiveTimeShift
     end
   end
 
-  def self.listup_player_status_to_dl
+  def self.update_programs
     download_list = []
     
     targets = LiveProgram.where(dl_status: LiveProgram::Status::REGISTERED).pluck(:live_id)
@@ -127,54 +122,89 @@ class Tasks::ArchiveTimeShift
     end
 
     targets.each do |t|
-      download_list << live.get_player_status(t)
+      status = live.get_player_status(t)
+      download_list << status if status != nil
       LiveProgram.where(live_id: t).take.update(dl_status: LiveProgram::Status::QUEUED)
     end
 
     download_list
   end
 
-  def self.download(target_list)
+  def self.enqueue(target_list)
     target_list.each do |target|
-      rtmp_url      = target.rtmp_url
-      player_ticket = target.player_ticket
-      queues        = target.queues
-      dir           = "video/downloaded"
-      file_name     = "lv#{target.live_id}_#{target.title}"
-      ext           = ".flv"
-      options       = "-V"
-
-      next unless self.is_ready_for_download?(target.live_id)
-      LiveProgram.where(live_id: target.live_id).first.update(dl_status: LiveProgram::Status::DOWNLOADING)
-
-      failed = false
-      for i in 0..(queues.length-1) do
-        que = queues[i]
-        file_path = dir + "/" + file_name
-        file_path += ".#{i}" if queues.length >= 2 
-        file_path += ext
-        unless system("#{@@test_echo}rtmpdumpTS -vr \"#{rtmp_url}\" -C S:\"#{player_ticket}\" -N \"#{que}\" -o \"#{file_path}\" -v #{options}")
-          @@log.error "rtmpdump failed. live_id: #{target.live_id}"
-          failed = true
-        end
-      end
-
-      unless failed
-        LiveProgram.where(live_id: target.live_id).take.update(dl_status: LiveProgram::Status::DOWNLOADED)
+      divided = (2 <= target.queues.length)
+      for i in 0..(target.queues.length - 1) do
+        file_name = "lv#{target.live_id}_#{target.title}"
+        file_name += ".#{i}" if divided
+        file_name += ".flv"
+        Job.create(
+          live_id:       target.live_id,
+          rtmp_url:      target.rtmp_url,
+          player_ticket: target.player_ticket,
+          divided:       divided,
+          queue_no:      divided ? i : nil,
+          queue:         target.queues[i],
+          file_name:     file_name,
+          status:        Job::Status::QUEUED
+        )
       end
     end
   end
 
-  public
-  
+  def self.download
+    list = Job.where(status: Job::Status::QUEUED)
+    ids = list.ids
+    list.update_all({status: Job::Status::DOWNLOADING})
+    list = Job.find(ids)
+    
+    list.each do |job|
+      command = "rtmpdumpTS" \
+        " -vr \"#{job.rtmp_url}\"" \
+        " -C S:\"#{job.player_ticket}\"" \
+        " -N \"#{job.queue}\"" \
+        " -o \"#{DOWNLOAD_DIR}/#{job.file_name}\"" \
+        " -v #{job.options}" \
+        " > #{DOWNLOAD_DIR}/#{job.file_name}"
+      @@log.debug command
+      succeeded = system(command)
+      if succeeded
+        job.update(status: Job::Status::DOWNLOADED)
+      else
+        job.update(status: Job::Status::DOWNLOAD_FAILED)
+        @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}"
+      end
+    end
+    
+  end
+
   def self.convert
     src_dir = "video/downloaded"
     dst_dir = "video/mp4"
     
     ffmpeg_command = %(ffmpeg -y -i #{src_dir}/$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{dst_dir}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
-    command = "for file in `ls video/downloaded`; do #{@@test_echo}#{ffmpeg_command}; done"
+    command = "for file in `ls video/downloaded`; do #{ffmpeg_command}; done"
     
     system(command)
+  end
+
+  def self.upload
+    list = Job.where(status: Job::Status::DOWNLOADED)
+    ids = list.ids
+    list.update_all({status: Job::Status::UPLOADING})
+    list = Job.find(ids)
+
+    list.each do |job|
+      succeeded = system("aws s3 mv" \
+        " #{DOWNLOAD_DIR}/#{job.file_name}" \
+        " s3://naskage-tsarchives/flv/" \
+      )
+      if succeeded
+        job.update(status: Job::Status::UPLOADED)
+      else
+        job.update(status: Job::Status::UPLOAD_FAILED)
+        @@log.error "upload to s3 failed. job id: #{job.id}, live_id: #{job.live_id}"
+      end
+    end
   end
   
   private
