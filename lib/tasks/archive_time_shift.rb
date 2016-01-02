@@ -185,9 +185,11 @@ class Tasks::ArchiveTimeShift
           @@log.debug command
           o, e, s = Open3.capture3(command )
           succeeded = self.rtmp_succeeded?(e)
+          @@log.debug { stdout: o, stderr: e, status: s}
           
           if succeeded
             job.update(status: Job::Status::DOWNLOADED)
+            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::DOWNLOADED)
             Upload.find_or_create_by(live_id: status.live_id,
               src: "#{DOWNLOAD_DIR}#{SEP}#{file_name}",
               dst: "s3://naskage-tsarchives/flv/",
@@ -195,6 +197,7 @@ class Tasks::ArchiveTimeShift
             )
           else          
             job.update(status: Job::Status::DOWNLOAD_FAILED)
+            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::DOWNLOAD_FAILED)
             @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
           end
           
@@ -222,8 +225,10 @@ class Tasks::ArchiveTimeShift
       succeeded = system(command)
       if succeeded
         up.update(status: Upload::Status::UPLOADED)
+            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOADED)
       else
         up.update(status: Upload::Status::UPLOAD_FAILED)
+            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOAD_FAILED)
         @@log.error "upload to s3 failed. upload id: #{up.id}, live_id: #{up.live_id}"
       end
     end
