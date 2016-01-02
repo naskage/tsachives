@@ -4,6 +4,8 @@ require 'open-uri'
 require 'nokogiri'
 require 'logger'
 require 'optparse'
+require 'open3'
+require 'parallel'
 require 'nico_live'
 
 if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
@@ -152,45 +154,60 @@ class Tasks::ArchiveTimeShift
     list.update_all({status: Job::Status::DOWNLOADING})
     list = Job.find(ids)
     
-    list.each do |job|
-      live_id = job.live_id
-      live = NicoLive.new
-      unless live.login
-        @@log.error "login failed."
-        return
-      end
-      status = live.get_player_status(live_id)
+    Parallel.each(list, in_threads: 4) do |job|
+      ActiveRecord::Base.connection_pool.with_connection do
       
-      divided = (2 <= status.queues.length)
-      
-      for i in 0..(status.queues.length - 1) do
-        file_name = "lv#{status.live_id}_#{status.title}"
-        file_name += ".#{i}" if divided
-        file_name += ".flv"
+        live_id = job.live_id
+        live = NicoLive.new
+        unless live.login
+          @@log.error "login failed."
+          next
+        end
+        status = live.get_player_status(live_id)
         
-        command = "rtmpdumpTS" \
-        " -vr \"#{status.rtmp_url}\"" \
-        " -C S:\"#{status.player_ticket}\"" \
-        " -N \"#{status.queues[i]}\"" \
-        " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
-        # command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
-        @@log.debug command
-        succeeded = system(command)          
-        if succeeded
-          job.update(status: Job::Status::DOWNLOADED)
-          Upload.find_or_create_by(live_id: status.live_id,
-            src: "#{DOWNLOAD_DIR}#{SEP}#{file_name}",
-            dst: "s3://naskage-tsarchives/flv/",
-            status: Upload::Status::UPLOADING
-          )
-        else
-          job.update(status: Job::Status::DOWNLOAD_FAILED)
-          @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
+        unless status
+          next
         end
         
+        divided = (2 <= status.queues.length)
+        
+        for i in 0..(status.queues.length - 1) do
+          file_name = "lv#{status.live_id}_#{status.title}"
+          file_name += ".#{i}" if divided
+          file_name += ".flv"
+          
+          command = "rtmpdumpTS" \
+          " -vr \"#{status.rtmp_url}\"" \
+          " -C S:\"#{status.player_ticket}\"" \
+          " -N \"#{status.queues[i]}\"" \
+          " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
+          # command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
+          @@log.debug command
+          o, e, s = Open3.capture3(command )
+          succeeded = self.rtmp_succeeded?(e)
+          
+          if succeeded
+            job.update(status: Job::Status::DOWNLOADED)
+            Upload.find_or_create_by(live_id: status.live_id,
+              src: "#{DOWNLOAD_DIR}#{SEP}#{file_name}",
+              dst: "s3://naskage-tsarchives/flv/",
+              status: Upload::Status::UPLOADING
+            )
+          else          
+            job.update(status: Job::Status::DOWNLOAD_FAILED)
+            @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
+          end
+          
+        end
       end
     end
-    
+  end
+  
+  def self.rtmp_succeeded?(stderr)
+    last_line = stderr.split("\n").last
+    progress = last_line.match(/(\d+\.\d+)%/) if last_line
+    error = last_line.start_with?("ERROR:") if last_line
+    (error || (progress && progress[1].to_f < 99.0)) ? false : true
   end
 
   def self.upload
@@ -212,70 +229,6 @@ class Tasks::ArchiveTimeShift
     end
   end
   
-  def self._enqueue(target_list)
-    target_list.each do |target|
-      divided = (2 <= target.queues.length)
-      for i in 0..(target.queues.length - 1) do
-        file_name = "lv#{target.live_id}_#{target.title}"
-        file_name += ".#{i}" if divided
-        file_name += ".flv"
-        job = Job.find_or_initialize_by(
-          live_id: target.live_id,
-          queue_no: divided ? i : nil
-        )
-        if job.new_record? 
-          job.rtmp_url = target.rtmp_url
-          job.player_ticket = target.player_ticket
-          job.divided = divided
-          job.queue = target.queues[i]
-          job.file_name = file_name
-          job.save!
-        end
-        job.update(status: Job::Status::QUEUED)
-      end
-    end
-  end
-
-  def self._download
-    list = Job.where(status: [Job::Status::QUEUED, Job::Status::DOWNLOAD_FAILED])
-    ids = list.ids
-    list.update_all({status: Job::Status::DOWNLOADING})
-    list = Job.find(ids)
-    
-    list.each do |job|
-      command = "rtmpdumpTS" \
-      " -vr \"#{job.rtmp_url}\"" \
-      " -C S:\"#{job.player_ticket}\"" \
-      " -N \"#{job.queue}\"" \
-      " -o \"#{DOWNLOAD_DIR}#{SEP}#{job.file_name}\"" \
-      " -v #{job.options}"
-      command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{job.file_name}"
-      @@log.debug command
-      succeeded = system(command)
-
-      # resuming
-      unless succeeded
-        catch(:resume_succeeded) do
-          5.times do
-            @@log.info 'resuming ...'
-            if system(command + " -e")
-              succeeded = true
-              throw :resume_succeeded
-            end
-          end
-        end
-      end
-      
-      if succeeded
-        job.update(status: Job::Status::DOWNLOADED)
-      else
-        job.update(status: Job::Status::DOWNLOAD_FAILED)
-        @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}"
-      end
-    end
-    
-  end
-
   def self.convert
     
     ffmpeg_command = %(ffmpeg -y -i #{src_dir}#{SEP}$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{dst_dir}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
@@ -284,27 +237,6 @@ class Tasks::ArchiveTimeShift
     system(command)
   end
 
-  def self._upload
-    list = Job.where(status: Job::Status::DOWNLOADED)
-    ids = list.ids
-    list.update_all({status: Job::Status::UPLOADING})
-    list = Job.find(ids)
-
-    list.each do |job|
-      command = "aws s3 mv" \
-      " #{DOWNLOAD_DIR}#{SEP}#{job.file_name}" \
-      " s3://naskage-tsarchives/flv/"
-      # command = "echo " + command
-      succeeded = system(command)
-      if succeeded
-        job.update(status: Job::Status::UPLOADED)
-      else
-        job.update(status: Job::Status::UPLOAD_FAILED)
-        @@log.error "upload to s3 failed. job id: #{job.id}, live_id: #{job.live_id}"
-      end
-    end
-  end
-  
   private
   
   def self.is_ready_for_download?(live_id)
