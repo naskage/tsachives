@@ -1,8 +1,9 @@
 class Upload < ActiveRecord::Base
 
   module Status
-    UPLOADING = 40
-    UPLOADED  = 41
+    READY     = 40
+    UPLOADING = 41
+    UPLOADED  = 42
     UPLOAD_FAILED = 49
   end
 

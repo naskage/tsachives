@@ -40,6 +40,15 @@ class NicoLive
       nil
     end
   end
+
+  def get_player_status_with_login(live_id)
+    unless login
+      @log.error " login failed. live_id: #{live_id}"
+      nil
+    end
+
+    get_player_status
+  end
   
   private
   

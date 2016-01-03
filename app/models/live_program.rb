@@ -7,6 +7,7 @@ class LiveProgram < ActiveRecord::Base
     DOWNLOADING = "downloading"
     DOWNLOADED  = "downloaded"
     CONVERTED   = "converted"
+    UPLOADED    = "uploaded"
   end
 
 end
