@@ -156,7 +156,7 @@ class Tasks::ArchiveTimeShift
     list = Job.find(ids)
 
     ActiveRecord::Base.clear_active_connections!
-    Parallel.each(list, in_threads: 8) do |job|
+    Parallel.each(list, in_threads: 16) do |job|
       ActiveRecord::Base.connection_pool.with_connection do
       
         live_id = job.live_id
