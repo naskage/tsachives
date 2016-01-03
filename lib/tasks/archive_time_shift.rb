@@ -5,6 +5,7 @@ require 'nokogiri'
 require 'logger'
 require 'optparse'
 require 'open3'
+require 'fileutils'
 require 'parallel'
 require 'nico_live'
 
@@ -50,8 +51,8 @@ class Tasks::ArchiveTimeShift
     # @@log.info 'converting...'
     # self.convert
 
-    @@log.info 'uploading...'
-    self.upload
+    # @@log.info 'uploading...'
+    # self.upload
     
     @@log.info '----------------------------------------'
 
@@ -125,7 +126,7 @@ class Tasks::ArchiveTimeShift
 
     live = NicoLive.new
     unless live.login
-      @@log.error "login failed."
+      @@log.error "#{__LINE__}: login failed."
       return
     end
 
@@ -153,14 +154,15 @@ class Tasks::ArchiveTimeShift
     ids = list.ids
     list.update_all({status: Job::Status::DOWNLOADING})
     list = Job.find(ids)
-    
-    Parallel.each(list, in_threads: 4) do |job|
+
+    ActiveRecord::Base.clear_active_connections!
+    Parallel.each(list, in_threads: 8) do |job|
       ActiveRecord::Base.connection_pool.with_connection do
       
         live_id = job.live_id
         live = NicoLive.new
         unless live.login
-          @@log.error "login failed."
+          @@log.error "#{__LINE__}: login failed."
           next
         end
         status = live.get_player_status(live_id)
@@ -181,23 +183,27 @@ class Tasks::ArchiveTimeShift
           " -C S:\"#{status.player_ticket}\"" \
           " -N \"#{status.queues[i]}\"" \
           " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
-          # command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
+          # command = "~/Developer/niconico/wine/bin/wine ~/Developer/niconico/rtmpdump/rtmpdumpTS "\
+          # + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
           @@log.debug command
-          o, e, s = Open3.capture3(command )
+          o, e, s = Open3.capture3(command)
           succeeded = self.rtmp_succeeded?(e)
           @@log.debug [ stdout: o, stderr: e, status: s ]
           
           if succeeded
             job.update(status: Job::Status::DOWNLOADED)
-            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::DOWNLOADED)
+            LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOADED)
+            move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
+            move_to = "#{FLV_DIR}#{SEP}"
+            FileUtils.mv(move_from, move_to)
             Upload.find_or_create_by(live_id: status.live_id,
-              src: "#{DOWNLOAD_DIR}#{SEP}#{file_name}",
+              src: "#{FLV_DIR}#{SEP}#{file_name}",
               dst: "s3://naskage-tsarchives/flv/",
               status: Upload::Status::UPLOADING
             )
           else          
             job.update(status: Job::Status::DOWNLOAD_FAILED)
-            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::DOWNLOAD_FAILED)
+            LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOAD_FAILED)
             @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
           end
           
@@ -212,6 +218,14 @@ class Tasks::ArchiveTimeShift
     error = last_line.start_with?("ERROR:") if last_line
     (error || (progress && progress[1].to_f < 99.0)) ? false : true
   end
+  
+  def self.convert
+    ffmpeg_command = %(ffmpeg -y -i #{FLV_DIR}#{SEP}$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{MP4_DIR}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
+    command = "for file in `ls #{FLV_DIR}`; do #{ffmpeg_command}; done"
+    # command = "echo " + command
+    @@log.debug command
+    system(command)
+  end
 
   def self.upload
     list = Upload.where(status: [Upload::Status::UPLOADING, Upload::Status::UPLOAD_FAILED])
@@ -225,20 +239,13 @@ class Tasks::ArchiveTimeShift
       succeeded = system(command)
       if succeeded
         up.update(status: Upload::Status::UPLOADED)
-        LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOADED)
+        LiveProgram.where(live_id: up.live_id).take.update(dl_status: Job::Status::UPLOADED)
       else
         up.update(status: Upload::Status::UPLOAD_FAILED)
-        LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOAD_FAILED)
+        LiveProgram.where(live_id: up.live_id).take.update(dl_status: Job::Status::UPLOAD_FAILED)
         @@log.error "upload to s3 failed. upload id: #{up.id}, live_id: #{up.live_id}"
       end
     end
-  end
-  
-  def self.convert
-    ffmpeg_command = %(ffmpeg -y -i #{src_dir}#{SEP}$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{dst_dir}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
-    command = "for file in `ls video#{SEP}downloaded`; do #{ffmpeg_command}; done"
-    
-    system(command)
   end
 
   private
