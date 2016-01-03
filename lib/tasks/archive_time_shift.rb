@@ -22,6 +22,8 @@ class Tasks::ArchiveTimeShift
   DOWNLOAD_DIR = "video" + SEP + "downloaded"
   FLV_DIR = "video" + SEP + "flv"
   MP4_DIR = "video" + SEP + "mp4"
+  UPLOAD_DIR_FLV = "video" + SEP + "upload" + SEP + "flv"
+  UPLOAD_DIR_MP4 = "video" + SEP + "upload" + SEP + "mp4"
 
   @@log = Logger.new('log/batch.log')
   @@log.level = Logger::DEBUG
@@ -180,7 +182,7 @@ class Tasks::ArchiveTimeShift
         for i in 0..(status.queues.length - 1) do
           # 分割なし: lv9999999_タイトル.flv
           # 分割あり: lv9999999_タイトル.0.flv, lv9999999_タイトル.1.flv, ...
-          file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : "flv")
+          file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
           
           command = "rtmpdumpTS" \
           " -vr \"#{status.rtmp_url}\"" \
@@ -201,8 +203,8 @@ class Tasks::ArchiveTimeShift
           job.update(status: Job::Status::DOWNLOADED)
           LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOADED)
           
-          # move downloaded flv files from downloaded/ to fl/
-          for i in (status.queues.length - 1) do
+          # move downloaded flv files from downloaded/ to flv/
+           for i in 0..(status.queues.length - 1) do
             file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : "flv")
             move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
             move_to = "#{FLV_DIR}#{SEP}"
@@ -271,41 +273,27 @@ class Tasks::ArchiveTimeShift
   end
   
   def self.upload
-    succeeded = system("aws s3 mv #{FLV_DIR} s3://naskage-tsarchives/flv/ --exclude \"*\" --include \"*.flv\" --recursive")
-    @@log.error "upload(flv) failed." unless succeeded
-    
-    succeeded = system("aws s3 mv #{MP4_DIR} s3://naskage-tsarchives/mp4/ --exclude \"*\" --include \"*.mp4\" --recursive")
-    @@log.error "upload(mp4) failed." unless succeeded
-  end
-  
-  def self._upload
-    list = Upload.where(status: [Upload::Status::UPLOADING, Upload::Status::UPLOAD_FAILED])
-    ids = list.ids
-    list.update_all({status: Upload::Status::UPLOADING})
-    list = Upload.find(ids)
+    Job.where(status: Job::Status::CONVERTED).each do |job|
+      live = LiveProgram.where(live_id: job.live_id).take
 
-    list.each do |up|
-      command = "aws s3 mv #{up.src} #{up.dst}"
-      # command = "echo " + command
-      succeeded = system(command)
-      if succeeded
-        up.update(status: Upload::Status::UPLOADED)
-        LiveProgram.where(live_id: up.live_id).take.update(dl_status: Job::Status::UPLOADED)
-      else
-        up.update(status: Upload::Status::UPLOAD_FAILED)
-        @@log.error "upload to s3 failed. upload id: #{up.id}, live_id: #{up.live_id}"
-      end
+      FileUtils.mkdir_p(UPLOAD_DIR_FLV)
+      FileUtils.mkdir_p(UPLOAD_DIR_MP4)
+      
+      file_name_base = "lv#{live.live_id}_#{live.title}"
+
+      move_from = Dir.glob("#{MP4_DIR}#{SEP}#{file_name_base}*")
+      move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
+      FileUtils.mv(move_from, move_to)
+      
+      move_from = Dir.glob("#{FLV_DIR}#{SEP}#{file_name_base}*")
+      move_to = "#{UPLOAD_DIR_FLV}#{SEP}"
+      FileUtils.mv(move_from, move_to)
     end
+    
+    succeeded = system("aws s3 mv #{UPLOAD_DIR_MP4} s3://naskage-tsarchives/mp4/ --exclude \"*\" --include \"*.mp4\" --recursive")
+    @@log.error "upload(mp4) failed." unless succeeded
+    
+    succeeded = system("aws s3 mv #{UPLOAD_DIR_FLV} s3://naskage-tsarchives/flv/ --exclude \"*\" --include \"*.flv\" --recursive")
+    @@log.error "upload(flv) failed." unless succeeded
   end
-
-  private
-  
-  def self.is_ready_for_download?(live_id)
-    LiveProgram.where(live_id: live_id).take.dl_status == LiveProgram::Status::QUEUED
-  end
-  
-  def self.is_ready_for_convert(live_id)
-    LiveProgram.where(live_id: live_id).take.dl_status == LiveProgram::Status::DOWNLOADED
-  end
-   
 end
