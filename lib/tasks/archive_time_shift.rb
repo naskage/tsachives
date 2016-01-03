@@ -165,8 +165,10 @@ class Tasks::ArchiveTimeShift
     list.update_all({status: Job::Status::DOWNLOADING})
     
     ActiveRecord::Base.clear_active_connections!
-    Parallel.each(Job.find(ids), in_threads: 32) do |job|
+    Parallel.each(Job.find(ids), in_threads: 16) do |job|
       ActiveRecord::Base.connection_pool.with_connection do
+        @@log.debug "download job started. live_id: [#{job.live_id}]"
+        
         # 1 ループの最後にtrueだったら成功
         job_completed = true
         

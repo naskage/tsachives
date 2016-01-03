@@ -18,8 +18,6 @@ class NicoLive
   end
 
   def login
-    @log.debug 'login...'
-
     url = "https://secure.nicovideo.jp/secure/login?site=nicolive"
     params = {
       "next_url" => "",
@@ -36,7 +34,7 @@ class NicoLive
     if hash['status'] != 'fail'
       PlayerStatus.new(hash)
     else
-      @log.info "could not get status. live_id: #{live_id}"
+      @log.error "could not get status. live_id: #{live_id}"
       nil
     end
   end
@@ -53,13 +51,13 @@ class NicoLive
   private
   
   def get_player_status_hash(live_id)
-    @log.debug 'get_player_status...'
-     
     url = "http://live.nicovideo.jp/api/getplayerstatus?v=lv#{live_id}"
     parsed_uri = URI.parse(url)
     response = Net::HTTP.start(parsed_uri.host, parsed_uri.port) { |http|
       http.get url, { 'Cookie' => "user_session=#{@user_session}"}
     }
+
+    @log.debug "get_player_status_hash, live_id: #{live_id}, response.body: #{response.body}"
 
     status = Hash.from_xml(response.body)['getplayerstatus']
   end
