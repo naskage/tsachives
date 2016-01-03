@@ -166,6 +166,7 @@ class Tasks::ArchiveTimeShift
     
     ActiveRecord::Base.clear_active_connections!
     Parallel.each(Job.find(ids), in_threads: 16) do |job|
+      @@log.debug "thread started. job.id: #{job.id}, live_id: #{job.live_id}"
       ActiveRecord::Base.connection_pool.with_connection do
         @@log.debug "download job started. live_id: [#{job.live_id}]"
         
@@ -201,9 +202,12 @@ class Tasks::ArchiveTimeShift
           LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOADED)
           
           # move downloaded flv files from downloaded/ to fl/
-          move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
-          move_to = "#{FLV_DIR}#{SEP}"
-          FileUtils.mv(move_from, move_to)
+          for i in (status.queues.length - 1) do
+            file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : "flv")
+            move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
+            move_to = "#{FLV_DIR}#{SEP}"
+            FileUtils.mv(move_from, move_to)
+          end
           
           # create upload task
           Upload.find_or_create_by(live_id: status.live_id,
@@ -257,10 +261,10 @@ class Tasks::ArchiveTimeShift
       succeeded = system(command)
       
       if succeeded
-        job.(status: Job::Status::CONVERTED)
+        job.update(status: Job::Status::CONVERTED)
         LiveProgram.where(live_id: job.live_id).take.update(dl_status: LiveProgram::Status::CONVERTED)
       else
-        job.(status: Job::Status::CONVERT_FAILED)
+        job.update(status: Job::Status::CONVERT_FAILED)
         @@log.error "convert failed. job: #{job.id}, live_id: #{job.live_id}"
       end
     end
