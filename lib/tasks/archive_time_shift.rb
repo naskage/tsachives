@@ -128,14 +128,14 @@ class Tasks::ArchiveTimeShift
      @@log.debug "listed targets: #{targets}, length: #{targets.length}"
 
     return [] if targets.length == 0
-
+    
     
     live = NicoLive.new
     unless live.login
       @@log.error "#{__LINE__}: login failed."
       []
     end
-
+    
     download_list = []
     targets.each do |t|
       status = live.get_player_status(t)
@@ -144,10 +144,10 @@ class Tasks::ArchiveTimeShift
         LiveProgram.where(live_id: t).take.update(dl_status: LiveProgram::Status::QUEUED)
       end
     end
-
+    
     download_list
   end
-
+  
   def self.enqueue(status_list)
     status_list.each do |status|
       job = Job.find_or_initialize_by(live_id: status.live_id)
@@ -163,22 +163,22 @@ class Tasks::ArchiveTimeShift
     list = Job.where(status: [Job::Status::QUEUED, Job::Status::DOWNLOAD_FAILED])
     ids = list.ids
     list.update_all({status: Job::Status::DOWNLOADING})
-
+    
     ActiveRecord::Base.clear_active_connections!
     Parallel.each(Job.find(ids), in_threads: 32) do |job|
       ActiveRecord::Base.connection_pool.with_connection do
         # 1 ループの最後にtrueだったら成功
         job_completed = true
-         
+        
         status = NicoLive.new.get_player_status_with_login(job.live_id)
         job_completed = false unless status
-
+        
         # 分割数分ループ
         for i in 0..(status.queues.length - 1) do
           # 分割なし: lv9999999_タイトル.flv
           # 分割あり: lv9999999_タイトル.0.flv, lv9999999_タイトル.1.flv, ...
           file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : "flv")
-           
+          
           command = "rtmpdumpTS" \
           " -vr \"#{status.rtmp_url}\"" \
           " -C S:\"#{status.player_ticket}\"" \
@@ -186,7 +186,7 @@ class Tasks::ArchiveTimeShift
           " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
           # command = "~/Developer/niconico/wine/bin/wine ~/Developer/niconico/rtmpdump/rtmpdumpTS "\
           # + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
-
+          
           # execute rtmpdump
           o, e, s = Open3.capture3(command)
           
@@ -197,12 +197,12 @@ class Tasks::ArchiveTimeShift
           # update status
           job.update(status: Job::Status::DOWNLOADED)
           LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOADED)
-
+          
           # move downloaded flv files from downloaded/ to fl/
           move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
           move_to = "#{FLV_DIR}#{SEP}"
           FileUtils.mv(move_from, move_to)
-
+          
           # create upload task
           Upload.find_or_create_by(live_id: status.live_id,
             src: "#{FLV_DIR}#{SEP}#{file_name}",
@@ -213,7 +213,7 @@ class Tasks::ArchiveTimeShift
           job.update(status: Job::Status::DOWNLOAD_FAILED)
           @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
         end
-          
+        
       end
     end
   end
@@ -236,7 +236,7 @@ class Tasks::ArchiveTimeShift
     
     Job.find(ids).each do |job|
       live = LiveProgram.where(live_id: job.live_id).take
-
+      
       file_name_base = "lv#{live.live_id}_#{live.title}"
       
       command = "ffmpeg"
@@ -250,10 +250,10 @@ class Tasks::ArchiveTimeShift
       end
       command += " -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k -y"
       command += " #{MP4_DIR}#{SEP}#{file_name_base}.mp4"
-
+      
       @@log.debug command
       succeeded = system(command)
-
+      
       if succeeded
         job.(status: Job::Status::CONVERTED)
         LiveProgram.where(live_id: job.live_id).take.update(dl_status: LiveProgram::Status::CONVERTED)
@@ -263,14 +263,13 @@ class Tasks::ArchiveTimeShift
       end
     end
   end
-
+  
   def self.upload
     succeeded = system("aws s3 mv #{FLV_DIR} s3://naskage-tsarchives/flv/ --exclude \"*\" --include \"*.flv\" --recursive")
     @@log.error "upload(flv) failed." unless succeeded
     
     succeeded = system("aws s3 mv #{MP4_DIR} s3://naskage-tsarchives/mp4/ --exclude \"*\" --include \"*.mp4\" --recursive")
     @@log.error "upload(mp4) failed." unless succeeded
-    end
   end
   
   def self._upload
