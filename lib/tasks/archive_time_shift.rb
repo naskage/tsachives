@@ -185,7 +185,7 @@ class Tasks::ArchiveTimeShift
           @@log.debug command
           o, e, s = Open3.capture3(command )
           succeeded = self.rtmp_succeeded?(e)
-          @@log.debug { stdout: o, stderr: e, status: s}
+          @@log.debug [ stdout: o, stderr: e, status: s ]
           
           if succeeded
             job.update(status: Job::Status::DOWNLOADED)
@@ -225,17 +225,16 @@ class Tasks::ArchiveTimeShift
       succeeded = system(command)
       if succeeded
         up.update(status: Upload::Status::UPLOADED)
-            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOADED)
+        LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOADED)
       else
         up.update(status: Upload::Status::UPLOAD_FAILED)
-            LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOAD_FAILED)
+        LiveProgram.where(live_id: status.live_id).take.update(status: Job::Status::UPLOAD_FAILED)
         @@log.error "upload to s3 failed. upload id: #{up.id}, live_id: #{up.live_id}"
       end
     end
   end
   
   def self.convert
-    
     ffmpeg_command = %(ffmpeg -y -i #{src_dir}#{SEP}$file -vcodec libx264 -b 230k -ac 2 -ar 44100 -ab 128k #{dst_dir}/`echo $file | sed -e 's/\(.*\)\.[^.]*$/\1.flv/g'`)
     command = "for file in `ls video#{SEP}downloaded`; do #{ffmpeg_command}; done"
     
