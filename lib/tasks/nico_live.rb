@@ -47,7 +47,7 @@ class NicoLive
       nil
     end
 
-    get_player_status
+    get_player_status(live_id)
   end
   
   private
