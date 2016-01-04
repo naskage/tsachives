@@ -199,10 +199,6 @@ class Tasks::ArchiveTimeShift
         end if status
         
         if job_completed
-          # update status
-          job.update(status: Job::Status::DOWNLOADED)
-          LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOADED)
-          
           # move downloaded flv files from downloaded/ to flv/
            for i in 0..(status.queues.length - 1) do
             file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
@@ -217,6 +213,10 @@ class Tasks::ArchiveTimeShift
             dst: "s3://naskage-tsarchives/flv/",
             status: Upload::Status::UPLOADING
           )
+          
+          # update status
+          job.update(status: Job::Status::DOWNLOADED)
+          LiveProgram.where(live_id: status.live_id).take.update(dl_status: Job::Status::DOWNLOADED)
         else          
           job.update(status: Job::Status::DOWNLOAD_FAILED)
           @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
