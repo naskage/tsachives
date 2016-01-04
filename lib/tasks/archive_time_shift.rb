@@ -205,7 +205,7 @@ class Tasks::ArchiveTimeShift
           
           # move downloaded flv files from downloaded/ to flv/
            for i in 0..(status.queues.length - 1) do
-            file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : "flv")
+            file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
             move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
             move_to = "#{FLV_DIR}#{SEP}"
             FileUtils.mv(move_from, move_to)
