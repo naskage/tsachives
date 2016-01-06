@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-DEBUG=true
+
 require 'open-uri'
 require 'nokogiri'
 require 'logger'
@@ -55,7 +55,7 @@ class Tasks::ArchiveTimeShift
 
     @@log.info '----------------------------------------'
     @@log.info 'converting...'
-    # self.convert
+    #self.convert
 
     @@log.info '----------------------------------------'
     @@log.info 'uploading...'
