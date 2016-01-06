@@ -192,7 +192,7 @@ class Tasks::ArchiveTimeShift
           " -N \"#{status.queues[i]}\"" \
           " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
           # command = "~/Developer/niconico/wine/bin/wine ~/Developer/niconico/rtmpdump/rtmpdumpTS "\
-          command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}" if DEBUG
+          command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}" if DEBUG_ECHO
           
           # execute rtmpdump
           o, e, s = Open3.capture3(command)
@@ -262,7 +262,7 @@ class Tasks::ArchiveTimeShift
       command += " #{MP4_DIR}#{SEP}#{file_name_base}.mp4"
       
       @@log.debug command
-      command = "touch #{MP4_DIR}#{SEP}#{file_name_base}.mp4" if DEBUG
+      command = "touch #{MP4_DIR}#{SEP}#{file_name_base}.mp4" if DEBUG_ECHO
       succeeded = system(command)
       
       if succeeded
