@@ -58,14 +58,14 @@ class NicoLive
   def get_player_status_with_login_thread_safe(live_id)
     if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
       lock = @@locker.pop
-      get_player_status_with_login(live_id)
+      ret = get_player_status_with_login(live_id)
       @@locker.push lock
     else
       @@locker.synchronize do
-        get_player_status_with_login(live_id)
+        ret = get_player_status_with_login(live_id)
       end
     end
-    
+    ret
   end
   
   private
