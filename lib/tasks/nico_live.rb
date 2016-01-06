@@ -10,6 +10,8 @@ OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
 class NicoLive
 
+  @locker = Mutex.new
+  
   attr_reader :player_ticket, :rtmp_url, :que
  
   def initialize(loglevel = Logger::INFO)
@@ -46,6 +48,12 @@ class NicoLive
     end
 
     get_player_status(live_id)
+  end
+
+  def get_player_status_with_login_mutex(live_id)
+    @locker.synchronize do
+      get_player_status_with_login(live_id)
+    end
   end
   
   private

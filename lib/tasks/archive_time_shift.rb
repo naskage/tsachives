@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+DEBUG=true
 require 'open-uri'
 require 'nokogiri'
 require 'logger'
@@ -14,7 +14,6 @@ if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
 else
   SEP = '/'
 end
-
 
 class Tasks::ArchiveTimeShift
 
@@ -35,15 +34,15 @@ class Tasks::ArchiveTimeShift
     @@log.info '----------------------------------------'
      
     @@log.info 'updating live archives...'
-    self.update_live_archives
+    self.fetch_live_archives
 
     @@log.info '----------------------------------------'
     @@log.info 'updating program list to download...'
-    list = self.update_programs
+    list = self.update_live_programs
     if list == nil
       @@log.error "listing up player status to download... failed."
     elsif list.length == 0
-      @@log.info "no time shift to download."
+      @@log.info "no time shift to add."
     else
       @@log.info '----------------------------------------'
       @@log.info 'enqueuing...'
@@ -56,7 +55,7 @@ class Tasks::ArchiveTimeShift
 
     @@log.info '----------------------------------------'
     @@log.info 'converting...'
-    self.convert
+    # self.convert
 
     @@log.info '----------------------------------------'
     @@log.info 'uploading...'
@@ -68,11 +67,11 @@ class Tasks::ArchiveTimeShift
 
   end
 
-  private
+#  private
 
   Reading = Struct.new(:live_id, :started_at, :user, :title, :desc, :url, :dl_status)
     
-  def self.update_live_archives
+  def self.fetch_live_archives
 
     readings = []
     
@@ -122,15 +121,14 @@ class Tasks::ArchiveTimeShift
     end
   end
 
-  def self.update_programs
-    targets = LiveProgram.where(dl_status: [
+  def self.update_live_programs
+    target_live_ids = LiveProgram.where(dl_status: [
         LiveProgram::Status::REGISTERED,
       ]).pluck(:live_id)
 
-     @@log.debug "listed targets: #{targets}, length: #{targets.length}"
+     @@log.info "candidates to download: #{target_live_ids}, length: #{target_live_ids.length}"
 
-    return [] if targets.length == 0
-    
+    return [] if target_live_ids.length == 0
     
     live = NicoLive.new
     unless live.login
@@ -139,13 +137,17 @@ class Tasks::ArchiveTimeShift
     end
     
     download_list = []
-    targets.each do |t|
-      status = live.get_player_status(t)
+    download_ids = []
+    target_live_ids.each do |id|
+      status = live.get_player_status(id)
       if status != nil && 1 <= status.queues.length
         download_list << status
-        LiveProgram.where(live_id: t).take.update(dl_status: LiveProgram::Status::QUEUED)
+        download_ids << id
+        LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::QUEUED)
       end
     end
+
+    @@log.info "added download list: #{download_ids}"
     
     download_list
   end
@@ -170,12 +172,12 @@ class Tasks::ArchiveTimeShift
     Parallel.each(Job.find(ids), in_threads: 16) do |job|
       @@log.debug "thread started. job.id: #{job.id}, live_id: #{job.live_id}"
       ActiveRecord::Base.connection_pool.with_connection do
-        @@log.debug "download job started. live_id: [#{job.live_id}]"
+        @@log.info "download job started. live_id: [#{job.live_id}]"
         
         # 1 ループの最後にtrueだったら成功
         job_completed = true
         
-        status = NicoLive.new.get_player_status_with_login(job.live_id)
+        status = NicoLive.new.get_player_status_with_login_mutex(job.live_id)
         job_completed = false unless status
         
         # 分割数分ループ
@@ -190,7 +192,7 @@ class Tasks::ArchiveTimeShift
           " -N \"#{status.queues[i]}\"" \
           " -o \"#{DOWNLOAD_DIR}#{SEP}#{file_name}\""
           # command = "~/Developer/niconico/wine/bin/wine ~/Developer/niconico/rtmpdump/rtmpdumpTS "\
-          # + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}"
+          command = "echo " + command + " > #{DOWNLOAD_DIR}#{SEP}#{file_name}" if DEBUG
           
           # execute rtmpdump
           o, e, s = Open3.capture3(command)
@@ -221,7 +223,7 @@ class Tasks::ArchiveTimeShift
           job.update(status: Job::Status::DOWNLOAD_FAILED)
           @@log.error "rtmpdump failed. job id: #{job.id}, live_id: #{job.live_id}.#{i}"
         end
-        
+
       end
     end
   end
@@ -260,6 +262,7 @@ class Tasks::ArchiveTimeShift
       command += " #{MP4_DIR}#{SEP}#{file_name_base}.mp4"
       
       @@log.debug command
+      command = "touch #{MP4_DIR}#{SEP}#{file_name_base}.mp4" if DEBUG
       succeeded = system(command)
       
       if succeeded
@@ -273,20 +276,23 @@ class Tasks::ArchiveTimeShift
   end
   
   def self.upload
+    
+    FileUtils.mkdir_p(UPLOAD_DIR_FLV)
+    FileUtils.mkdir_p(UPLOAD_DIR_MP4)
+      
     Job.where(status: Job::Status::CONVERTED).each do |job|
       live = LiveProgram.where(live_id: job.live_id).take
 
-      FileUtils.mkdir_p(UPLOAD_DIR_FLV)
-      FileUtils.mkdir_p(UPLOAD_DIR_MP4)
-      
       file_name_base = "lv#{live.live_id}_#{live.title}"
 
       move_from = Dir.glob("#{MP4_DIR}#{SEP}#{file_name_base}*")
       move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
+      @@log.debug "move mp4 from: #{move_from} to: #{move_to}"
       FileUtils.mv(move_from, move_to)
       
       move_from = Dir.glob("#{FLV_DIR}#{SEP}#{file_name_base}*")
       move_to = "#{UPLOAD_DIR_FLV}#{SEP}"
+      @@log.debug "move flv from: #{move_from} to: #{move_to}"
       FileUtils.mv(move_from, move_to)
     end
     

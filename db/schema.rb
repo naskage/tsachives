@@ -17,14 +17,18 @@ ActiveRecord::Schema.define(version: 20160101183837) do
   enable_extension "plpgsql"
 
   create_table "jobs", force: :cascade do |t|
-    t.integer  "live_id",    null: false
+    t.integer  "live_id",                      null: false
+    t.boolean  "divided",      default: false
+    t.integer  "division_num"
     t.integer  "status"
-    t.datetime "created_at", null: false
-    t.datetime "updated_at", null: false
+    t.datetime "created_at",                   null: false
+    t.datetime "updated_at",                   null: false
   end
 
+  add_index "jobs", ["live_id"], name: "index_jobs_on_live_id", using: :btree
+
   create_table "live_programs", force: :cascade do |t|
-    t.integer  "live_id"
+    t.integer  "live_id",       null: false
     t.datetime "started_at"
     t.string   "user"
     t.text     "title"
@@ -35,6 +39,8 @@ ActiveRecord::Schema.define(version: 20160101183837) do
     t.datetime "created_at",    null: false
     t.datetime "updated_at",    null: false
   end
+
+  add_index "live_programs", ["live_id"], name: "index_live_programs_on_live_id", using: :btree
 
   create_table "uploads", force: :cascade do |t|
     t.integer  "live_id"
