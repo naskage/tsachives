@@ -9,8 +9,13 @@ require 'player_status'
 OpenSSL::SSL::VERIFY_PEER = OpenSSL::SSL::VERIFY_NONE
 
 class NicoLive
-
-  @locker = Mutex.new
+  
+  if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
+    @@locker = Queue.new
+    1.times { @locker.push :lock }
+  else
+    @@locker = Mutex.new
+  end
   
   attr_reader :player_ticket, :rtmp_url, :que
  
@@ -51,9 +56,16 @@ class NicoLive
   end
 
   def get_player_status_with_login_mutex(live_id)
-    @locker.synchronize do
+    if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
+      lock = @@locker.pop
       get_player_status_with_login(live_id)
+      @@locker.push lock
+    else
+      @@locker.synchronize do
+        get_player_status_with_login(live_id)
+      end
     end
+    
   end
   
   private

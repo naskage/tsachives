@@ -177,7 +177,7 @@ class Tasks::ArchiveTimeShift
         # 1 ループの最後にtrueだったら成功
         job_completed = true
         
-        status = NicoLive.new.get_player_status_with_login_mutex(job.live_id)
+        status = NicoLive.new.get_player_status_with_login_thread_safe(job.live_id)
         job_completed = false unless status
         
         # 分割数分ループ
