@@ -12,7 +12,7 @@ class NicoLive
   
   if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
     @@locker = Queue.new
-    1.times { @locker.push :lock }
+    1.times { @@locker.push :lock }
   else
     @@locker = Mutex.new
   end
