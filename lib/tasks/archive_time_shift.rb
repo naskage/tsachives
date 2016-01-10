@@ -57,7 +57,7 @@ class Tasks::ArchiveTimeShift
 
     @@log.info '----------------------------------------'
     @@log.info 'converting...'
-    #self.convert
+    self.convert
 
     @@log.info '----------------------------------------'
     @@log.info 'uploading...'
