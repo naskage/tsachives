@@ -10,6 +10,7 @@ require 'open3'
 require 'fileutils'
 require 'parallel'
 require 'nico_live'
+require 'uri'
 
 if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
   SEP = '\\'
@@ -25,6 +26,9 @@ class Tasks::ArchiveTimeShift
   MP4_DIR = "video" + SEP + "mp4"
   UPLOAD_DIR_FLV = "video" + SEP + "upload" + SEP + "flv"
   UPLOAD_DIR_MP4 = "video" + SEP + "upload" + SEP + "mp4"
+  S3_URL_BASE = "https://s3-ap-northeast-1.amazonaws.com/naskage-tsarchives"
+  S3_URL_FLV = S3_URL_BASE + "/flv"
+  S3_URL_MP4 = S3_URL_BASE + "/mp4"
 
   @@log = Logger.new('log/batch.log')
   @@log.level = Logger::DEBUG
@@ -295,7 +299,11 @@ class Tasks::ArchiveTimeShift
     FileUtils.mkdir_p(UPLOAD_DIR_FLV)
     FileUtils.mkdir_p(UPLOAD_DIR_MP4)
       
-    Job.where(status: Job::Status::CONVERTED).each do |job|
+    Job.where(status: [Job::Status::CONVERTED,
+                       Job::Status::UPLOAD_FAILED,
+                       Job::Status::UPLOAD_READY_MP4,
+                       JOB::Status::UPLOAD_READY_FLV]).each do |job|
+      
       live = LiveProgram.where(live_id: job.live_id).take
       
       file_name_base = "lv#{live.live_id}_#{live.title}"
@@ -303,12 +311,32 @@ class Tasks::ArchiveTimeShift
       move_from = Dir.glob(File.expand_path("#{MP4_DIR}#{SEP}#{file_name_base}*"))
       move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
       @@log.debug "move mp4 from: #{move_from} to: #{move_to}"
-      FileUtils.mv(move_from, move_to)
+      unless move_from.empty?
+        FileUtils.mv(move_from, move_to)
+        mp4_url = S3_URL_MP4 + "/" + URI.encode(file_name_base) + ".flv"
+        live.update(mp4: true, mp4_url: mp4_url)
+      end
+      
       
       move_from = Dir.glob(File.expand_path("#{FLV_DIR}#{SEP}#{file_name_base}*"))
       move_to = "#{UPLOAD_DIR_FLV}#{SEP}"
       @@log.debug "move flv from: #{move_from} to: #{move_to}"
-      FileUtils.mv(move_from, move_to)
+      unless move_from.empty?
+        FileUtils.mv(move_from, move_to)
+        flv_url = S3_URL_FLV + "/" + URI.encode(file_name_base) + ".mp4"
+        live.update(flv: true, flv_url: flv_url)
+      end
+
+      if live.mp4 && live.flv
+        job.update(status: Job::Status::UPLOAD_READY)
+      elsif live.mp4 && !live.flv
+        job.update(status: Job::Status::UPLOAD_READY_MP4)
+      elsif !live.mp4 && live.flv
+        job.update(status: Job::Status::UPLOAD_READY_FLV)
+      else
+        job.update(status: Job::Status::UPLOAD_FAILED)
+      end
+        
     end
     
     succeeded = system("aws s3 mv #{UPLOAD_DIR_MP4} s3://naskage-tsarchives/mp4/ --exclude \"*\" --include \"*.mp4\" --recursive")
