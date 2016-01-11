@@ -265,7 +265,8 @@ class Tasks::ArchiveTimeShift
       
       @@log.debug command
       command = "touch #{MP4_DIR}#{SEP}#{file_name_base}.mp4" if DEBUG_ECHO
-      succeeded = system(command)
+      o, e, s = Open3.capture3(command)
+      succeeded = self.convert_succeeded?(o, e, s)
       
       if succeeded
         job.update(status: Job::Status::CONVERTED)
@@ -275,6 +276,14 @@ class Tasks::ArchiveTimeShift
         @@log.error "convert failed. job: #{job.id}, live_id: #{job.live_id}"
       end
     end
+  end
+
+  def self.convert_succeeded?(output, stderr, status)
+    last_line = stderr.split("\n").last
+    
+    @@log.debug "ffmpeg error last_line: #{last_line}" unless stderr.empty?
+    
+    status == 0
   end
   
   def self.upload
@@ -286,6 +295,7 @@ class Tasks::ArchiveTimeShift
       live = LiveProgram.where(live_id: job.live_id).take
 
       file_name_base = "lv#{live.live_id}_#{live.title}"
+      @@log.debug file_name_base
 
       move_from = Dir.glob("#{MP4_DIR}#{SEP}#{file_name_base}*")
       move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
