@@ -329,6 +329,7 @@ class Tasks::ArchiveTimeShift
 
       if live.mp4 && live.flv
         job.update(status: Job::Status::UPLOAD_READY)
+        live.update(dl_status: LiveProgram::Status::UPLOADED)
       elsif live.mp4 && !live.flv
         job.update(status: Job::Status::UPLOAD_READY_MP4)
       elsif !live.mp4 && live.flv

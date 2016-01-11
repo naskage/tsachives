@@ -20,8 +20,8 @@
 # Learn more: http://github.com/javan/whenever
 
 set :output, 'log/cron_log.log'
-set :environment, :development
+set :environment, :production
 set :job_template, "/bin/zsh -l -c ':job'" if ENV['MACBOOK']
-every 1.minutes do
+every 1.day, at: '11:00 am' do
   runner "Tasks::ArchiveTimeShift.execute"
 end
