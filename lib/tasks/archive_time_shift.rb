@@ -143,9 +143,13 @@ class Tasks::ArchiveTimeShift
     target_live_ids.each do |id|
       status = live.get_player_status(id)
       if status != nil && 1 <= status.queues.length
-        download_list << status
-        download_ids << id
-        LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::QUEUED)
+        if Time.now < LiveProgram.where(live_id: id).take.started_at.beginning_of_day + 1.week + 1.day
+          download_list << status
+          download_ids << id
+          LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::QUEUED)
+        else
+          LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::UNAVAILABLE)
+        end
       end
     end
 
@@ -186,7 +190,7 @@ class Tasks::ArchiveTimeShift
         for i in 0..(status.queues.length - 1) do
           # 分割なし: lv9999999_タイトル.flv
           # 分割あり: lv9999999_タイトル.0.flv, lv9999999_タイトル.1.flv, ...
-          file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
+          file_name = "lv#{status.live_id}_#{status.title.gsub(/ /, '_')}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
           
           command = "rtmpdumpTS" \
           " -vr \"#{status.rtmp_url}\"" \
@@ -297,12 +301,12 @@ class Tasks::ArchiveTimeShift
       file_name_base = "lv#{live.live_id}_#{live.title}"
       @@log.debug file_name_base
 
-      move_from = Dir.glob("#{MP4_DIR}#{SEP}#{file_name_base}*")
+      move_from = Dir.glob(File.expand_path("#{MP4_DIR}#{SEP}#{file_name_base}*")
       move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
       @@log.debug "move mp4 from: #{move_from} to: #{move_to}"
       FileUtils.mv(move_from, move_to)
       
-      move_from = Dir.glob("#{FLV_DIR}#{SEP}#{file_name_base}*")
+      move_from = Dir.glob(File.expand_path("#{FLV_DIR}#{SEP}#{file_name_base}*"))
       move_to = "#{UPLOAD_DIR_FLV}#{SEP}"
       @@log.debug "move flv from: #{move_from} to: #{move_to}"
       FileUtils.mv(move_from, move_to)
