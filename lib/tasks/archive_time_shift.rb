@@ -300,7 +300,6 @@ class Tasks::ArchiveTimeShift
       
       file_name_base = "lv#{live.live_id}_#{live.title}"
       @@log.debug file_name_base
-      
       move_from = Dir.glob(File.expand_path("#{MP4_DIR}#{SEP}#{file_name_base}*"))
       move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
       @@log.debug "move mp4 from: #{move_from} to: #{move_to}"
