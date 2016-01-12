@@ -56,6 +56,7 @@ class NicoLive
   end
 
   def get_player_status_with_login_thread_safe(live_id)
+    sleep(1)
     if RUBY_PLATFORM.downcase =~ /mswin(?!ce)|mingw|cygwin|bccwin/
       lock = @@locker.pop
       ret = get_player_status_with_login(live_id)
@@ -65,7 +66,6 @@ class NicoLive
         ret = get_player_status_with_login(live_id)
       end
     end
-    sleep(2)
     ret
   end
   
