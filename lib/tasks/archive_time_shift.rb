@@ -214,14 +214,14 @@ class Tasks::ArchiveTimeShift
           # move downloaded flv files from downloaded/ to flv/
            for i in 0..(status.queues.length - 1) do
             file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
-            move_from = "#{DOWNLOAD_DIR}#{SEP}#{file_name}"
-            move_to = "#{FLV_DIR}#{SEP}"
+            move_from = DOWNLOAD_DIR + SEP + file_name
+            move_to = FLV_DIR + SEP
             FileUtils.mv(move_from, move_to)
           end
           
           # create upload task
           Upload.find_or_create_by(live_id: status.live_id,
-            src: "#{FLV_DIR}#{SEP}#{file_name}",
+            src: FLV_DIR + SEP + file_name,
             dst: "s3://naskage-tsarchives/flv/",
             status: Upload::Status::UPLOADING
           )
