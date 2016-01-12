@@ -65,6 +65,7 @@ class NicoLive
         ret = get_player_status_with_login(live_id)
       end
     end
+    sleep(0.1)
     ret
   end
   

@@ -177,8 +177,6 @@ class Tasks::ArchiveTimeShift
     list = Job.where(status: [Job::Status::QUEUED, Job::Status::DOWNLOAD_FAILED])
     ids = list.ids
     list.update_all({status: Job::Status::DOWNLOADING})
-
-    nicolive = NicoLive.new
     
     ActiveRecord::Base.clear_active_connections!
     Parallel.each(Job.find(ids), in_threads: 16) do |job|
@@ -189,7 +187,7 @@ class Tasks::ArchiveTimeShift
         # 1 ループの最後にtrueだったら成功
         job_completed = true
         
-        status = nicolive.get_player_status_with_login_thread_safe(job.live_id)
+        status = NicoLive.new.get_player_status_with_login_thread_safe(job.live_id)
         job_completed = false unless status
         
         # 分割数分ループ
