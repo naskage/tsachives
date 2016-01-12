@@ -243,6 +243,7 @@ class Tasks::ArchiveTimeShift
     
     progress = last_line.match(/(\d+\.\d+)%/) if last_line
     error = last_line.start_with?("ERROR:") if last_line
+    error = last_line.start_with?("Faild to open file") if last_line
     
     @@log.debug "rtmp last_line: #{last_line}"
     
