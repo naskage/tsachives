@@ -302,7 +302,7 @@ class Tasks::ArchiveTimeShift
     Job.where(status: [Job::Status::CONVERTED,
                        Job::Status::UPLOAD_FAILED,
                        Job::Status::UPLOAD_READY_MP4,
-                       JOB::Status::UPLOAD_READY_FLV]).each do |job|
+                       Job::Status::UPLOAD_READY_FLV]).each do |job|
       
       live = LiveProgram.where(live_id: job.live_id).take
       
