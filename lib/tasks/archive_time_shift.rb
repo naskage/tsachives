@@ -209,6 +209,7 @@ class Tasks::ArchiveTimeShift
           
           job_completed = false unless self.rtmp_succeeded?(e)
           @@log.debug "download live_id: #{status.live_id} ended with status #{job_completed}."
+          @@log.debug "lv#{live_id} :" +  e unless job_completed
         end if status
         
         if job_completed
