@@ -264,7 +264,7 @@ class Tasks::ArchiveTimeShift
       
       command = "ffmpeg"
       if job.divided
-        for i in 0..job.division_num do
+        for i in 0..(job.division_num-1) do
           command += " -i #{FLV_DIR}#{SEP}#{file_name_base}.#{i}.flv"
         end
         command += " -filter_complex \"concat=n=#{job.division_num}:v=1:a=1\""
