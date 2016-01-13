@@ -179,7 +179,7 @@ class Tasks::ArchiveTimeShift
     list.update_all({status: Job::Status::DOWNLOADING})
     
     ActiveRecord::Base.clear_active_connections!
-    Parallel.each(Job.find(ids), in_threads: 1) do |job|
+    Parallel.each(Job.find(ids), in_threads: 16) do |job|
       @@log.debug "thread started. job.id: #{job.id}, live_id: #{job.live_id}"
       ActiveRecord::Base.connection_pool.with_connection do
         @@log.info "download job started. live_id: [#{job.live_id}]"
