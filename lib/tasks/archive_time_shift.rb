@@ -208,6 +208,7 @@ class Tasks::ArchiveTimeShift
           o, e, s = Open3.capture3(command)
           
           job_completed = false unless self.rtmp_succeeded?(e)
+          @@log.debug "download live_id: #{status.live_id} ended with status #{job_completed}."
         end if status
         
         if job_completed
@@ -243,7 +244,7 @@ class Tasks::ArchiveTimeShift
     
     progress = last_line.match(/(\d+\.\d+)%/) if last_line
     error1 = last_line.start_with?("ERROR:") if last_line
-    error2 = last_line.start_with?("Faild to open file") if last_line
+    error2 = last_line.start_with?("Failed to open file") if last_line
     
     @@log.debug "rtmp last_line: #{last_line}"
     
