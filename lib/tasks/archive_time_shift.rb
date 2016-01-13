@@ -242,12 +242,12 @@ class Tasks::ArchiveTimeShift
     last_line = stderr.split("\n").last
     
     progress = last_line.match(/(\d+\.\d+)%/) if last_line
-    error = last_line.start_with?("ERROR:") if last_line
-    error = last_line.start_with?("Faild to open file") if last_line
+    error1 = last_line.start_with?("ERROR:") if last_line
+    error2 = last_line.start_with?("Faild to open file") if last_line
     
     @@log.debug "rtmp last_line: #{last_line}"
     
-    succeeded = (error || (progress && progress[1].to_f < 99.0)) ? false : true
+    succeeded = (error1 || error2 || (progress && progress[1].to_f < 99.0)) ? false : true
   end
   
   def self.convert
