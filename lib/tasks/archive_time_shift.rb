@@ -194,7 +194,7 @@ class Tasks::ArchiveTimeShift
         for i in 0..(status.queues.length - 1) do
           # 分割なし: lv9999999_タイトル.flv
           # 分割あり: lv9999999_タイトル.0.flv, lv9999999_タイトル.1.flv, ...
-          file_name = "lv#{status.live_id}_#{status.title.gsub(/ /, '_')}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
+          file_name = self.file_name_base(status.live_id, status.title) + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
           
           command = "rtmpdumpTS" \
           " -vr \"#{status.rtmp_url}\"" \
@@ -213,7 +213,7 @@ class Tasks::ArchiveTimeShift
         if job_completed
           # move downloaded flv files from downloaded/ to flv/
            for i in 0..(status.queues.length - 1) do
-            file_name = "lv#{status.live_id}_#{status.title}" + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
+            file_name = self.file_name_base(status.live_id, status.title) + (2 <= status.queues.length ? ".#{i}.flv" : ".flv")
             move_from = DOWNLOAD_DIR + SEP + file_name
             move_to = FLV_DIR + SEP
             FileUtils.mv(move_from, move_to)
@@ -258,7 +258,7 @@ class Tasks::ArchiveTimeShift
     Job.find(ids).each do |job|
       live = LiveProgram.where(live_id: job.live_id).take
       
-      file_name_base = "lv#{live.live_id}_#{live.title}"
+      file_name_base = self.file_name_base(live.live_id, live.title)
       
       command = "ffmpeg"
       if job.divided
@@ -307,7 +307,7 @@ class Tasks::ArchiveTimeShift
       
       live = LiveProgram.where(live_id: job.live_id).take
       
-      file_name_base = "lv#{live.live_id}_#{live.title}"
+      file_name_base = self.file_name_base(live.live_id, live.title)
       @@log.debug file_name_base
       move_from = Dir.glob(File.expand_path("#{MP4_DIR}#{SEP}#{file_name_base}*"))
       move_to = "#{UPLOAD_DIR_MP4}#{SEP}"
@@ -346,5 +346,9 @@ class Tasks::ArchiveTimeShift
     
     succeeded = system("aws s3 mv #{UPLOAD_DIR_FLV} s3://naskage-tsarchives/flv/ --exclude \"*\" --include \"*.flv\" --recursive")
     @@log.error "upload(flv) failed." unless succeeded
+  end
+
+  def self.file_name_base(live_id, title)
+    "lv#{live_id}_#{title.gsub(/ /, '_')}"
   end
 end
