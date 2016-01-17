@@ -322,6 +322,7 @@ class Tasks::ArchiveTimeShift
       else
         job.update(status: Job::Status::DISAPPEARED)
         live.update(dl_status: LiveProgram::Status::DISAPPEARED)
+        next
       end
       
       
@@ -335,6 +336,7 @@ class Tasks::ArchiveTimeShift
       else
         job.update(status: Job::Status::DISAPPEARED)
         live.update(dl_status: LiveProgram::Status::DISAPPEARED)
+        next
       end
 
       if live.mp4 && live.flv
@@ -358,6 +360,8 @@ class Tasks::ArchiveTimeShift
   end
 
   def self.file_name_base(live_id, title)
-    "lv#{live_id}_#{title.gsub(/ /, '_')}"
+    #"lv#{live_id}_#{title.gsub(/ /, '_')}"
+    t = title.gsub(/:|;|>|<|"|\/|\?|\\|\*|\|| /, '_')
+    "lv#{live_id}_#{t}"
   end
 end
