@@ -361,7 +361,20 @@ class Tasks::ArchiveTimeShift
 
   def self.file_name_base(live_id, title)
     #"lv#{live_id}_#{title.gsub(/ /, '_')}"
-    t = title.gsub(/:|;|>|<|"|\/|\?|\\|\*|\|| /, '_')
+    t = title.dup
+    t.gsub!(/:/, '：')
+    t.gsub!(/;/, '；')
+    t.gsub!(/>/, '＞')
+    t.gsub!(/</, '＜')
+    t.gsub!(/"/, '”')
+    t.gsub!(/\//, '／')
+    t.gsub!(/\?/, '？')
+    t.gsub!(/\\/, '￥')
+    t.gsub!(/\*/, '＊')
+    t.gsub!(/\|/, '｜')
+    t.gsub!(/ /, '_')
+    #t = t.gsub(/:|;|>|<|"|\/|\?|\\|\*|\|| /, '_')
+    
     "lv#{live_id}_#{t}"
   end
 end
