@@ -150,9 +150,9 @@ class Tasks::ArchiveTimeShift
         if Time.now < LiveProgram.where(live_id: id).take.started_at.beginning_of_day + 1.week + 1.day
           download_list << status
           download_ids << id
-          LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::QUEUED)
+          LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::QUEUED, player_status: status.raw_status)
         else
-          LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::UNAVAILABLE)
+          LiveProgram.where(live_id: id).take.update(dl_status: LiveProgram::Status::UNAVAILABLE, player_status: status.raw_status)
         end
       end
     end
@@ -319,7 +319,7 @@ class Tasks::ArchiveTimeShift
         mp4_url = S3_URL_MP4 + "/" + URI.encode(file_name_base) + ".mp4"
         live.update(mp4: true, mp4_url: mp4_url)
       else
-        job.update(status: Job::Status::DISSAPEARED)
+        job.update(status: Job::Status::DISAPPEARED)
         live.update(dl_status: LiveProgram::Status::DISAPPEARED)
       end
       
@@ -332,7 +332,7 @@ class Tasks::ArchiveTimeShift
         flv_url = S3_URL_FLV + "/" + URI.encode(file_name_base) + ".flv"
         live.update(flv: true, flv_url: flv_url)
       else
-        job.update(status: Job::Status::DISSAPEARED)
+        job.update(status: Job::Status::DISAPPEARED)
         live.update(dl_status: LiveProgram::Status::DISAPPEARED)
       end
 

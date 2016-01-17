@@ -5,7 +5,10 @@ default: &default
 
 development:
   <<: *default
-  database: tsarchives_development
+  host: <%= ENV['PG_HOST'] %>
+  database: tsarchives
+  username: postgres
+  password: <%= ENV['PG_PASSWORD'] %>
 
 test:
   <<: *default

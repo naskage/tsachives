@@ -69,7 +69,7 @@ class NicoLive
     ret
   end
   
-  private
+#  private
   
   def get_player_status_hash(live_id)
     url = "http://live.nicovideo.jp/api/getplayerstatus?v=lv#{live_id}"
