@@ -8,7 +8,7 @@ class LiveProgram < ActiveRecord::Base
     DOWNLOADED   = "downloaded"
     CONVERTED    = "converted"
     UPLOADED     = "uploaded"
-    DISAPPEAERED = "disappeared"
+    DISAPPEARED  = "disappeared"
   end
 
 end
