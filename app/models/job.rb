@@ -14,6 +14,7 @@ class Job < ActiveRecord::Base
     UPLOADING        = 44
     UPLOADED         = 45
     UPLOAD_FAILED    = 49
+    DISAPPEARED      = 59
   end
 
 end

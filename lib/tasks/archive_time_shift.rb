@@ -316,8 +316,11 @@ class Tasks::ArchiveTimeShift
       @@log.debug "move mp4 from: #{move_from} to: #{move_to}"
       unless move_from.empty?
         FileUtils.mv(move_from, move_to)
-        mp4_url = S3_URL_MP4 + "/" + URI.encode(file_name_base) + ".flv"
+        mp4_url = S3_URL_MP4 + "/" + URI.encode(file_name_base) + ".mp4"
         live.update(mp4: true, mp4_url: mp4_url)
+      else
+        job.update(status: Job::Status::DISSAPEARED)
+        live.update(dl_status: LiveProgram::Status::DISAPPEARED)
       end
       
       
@@ -326,8 +329,11 @@ class Tasks::ArchiveTimeShift
       @@log.debug "move flv from: #{move_from} to: #{move_to}"
       unless move_from.empty?
         FileUtils.mv(move_from, move_to)
-        flv_url = S3_URL_FLV + "/" + URI.encode(file_name_base) + ".mp4"
+        flv_url = S3_URL_FLV + "/" + URI.encode(file_name_base) + ".flv"
         live.update(flv: true, flv_url: flv_url)
+      else
+        job.update(status: Job::Status::DISSAPEARED)
+        live.update(dl_status: LiveProgram::Status::DISAPPEARED)
       end
 
       if live.mp4 && live.flv
