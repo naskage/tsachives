@@ -17,6 +17,6 @@ test:
 production:
   <<: *default
   host: <%= ENV['PG_HOST'] %>
-  database: tsarchives
+  database: tsarchives 
   username: postgres
   password: <%= ENV['PG_PASSWORD'] %>

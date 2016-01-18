@@ -373,6 +373,7 @@ class Tasks::ArchiveTimeShift
     t.gsub!(/\*/, '＊')
     t.gsub!(/\|/, '｜')
     t.gsub!(/ /, '_')
+    t.gsub!(/!/, '！')
     #t = t.gsub(/:|;|>|<|"|\/|\?|\\|\*|\|| /, '_')
     
     "lv#{live_id}_#{t}"
